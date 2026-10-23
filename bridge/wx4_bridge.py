@@ -251,19 +251,52 @@ def _last_voice(box):
     return fresh
 
 
+def _bring_front() -> None:
+    """把微信主窗口提到前面。
+
+    桥点「转文字」用的是**真鼠标**,窗口被别的窗口挡着时,那一下点的就是挡在前面的窗口,
+    气泡压根没被点到 —— 表现就是「点了没反应、两轮都不出字」。
+    """
+    win = _main_window()
+    if win is None:
+        return
+    try:
+        import ctypes
+
+        hwnd = int(getattr(win, "NativeWindowHandle", 0) or 0)
+        if hwnd:
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+            time.sleep(0.3)
+    except Exception as err:  # noqa: BLE001
+        log("前置微信窗口失败:", err)
+
+
+def _hover(c) -> None:
+    """鼠标挪到控件中心。「转文字」那个小按钮是悬停之后才出来的。"""
+    try:
+        r = c.BoundingRectangle
+        _uia().SetCursorPos((r.left + r.right) // 2, (r.top + r.bottom) // 2)
+        time.sleep(0.35)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _click_transcribe(item) -> bool:
     """点这一条语音气泡上的「转文字」。返回有没有点成。"""
+    _bring_front()
+    _hover(item)
     btn = _find_transcribe(item)
     if btn is None:
         return False
     try:
         btn.Click(simulateMove=True)
+        return True
     except Exception:  # noqa: BLE001
         try:
             btn.GetInvokePattern().Invoke()
+            return True
         except Exception:  # noqa: BLE001
             return False
-    return True
 
 
 def _wait_voice_text(box, seconds: float = 12.0) -> str:
