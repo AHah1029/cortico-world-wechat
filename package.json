@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-wechat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Cortico World: WeChat 4.x through a Python UI-automation bridge, with a draft-and-confirm gate on replies",
   "license": "MIT",
@@ -22,6 +22,8 @@
   "files": [
     "src",
     "bridge",
+    "!bridge/test_capture.py",
+    "!bridge/capture_test.json",
     "README.md",
     "CHANGELOG.md",
     "describe.json"
