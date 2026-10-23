@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ToolCallContext } from 'cortico/core/types.ts';
@@ -40,13 +40,18 @@ beforeEach(() => {
 afterEach(() => rmSync(scratchDir, { recursive: true, force: true }));
 
 function makeWorld() {
+  let opts: { onEvent: (event: Record<string, unknown>) => void } | null = null;
   const world = new WechatWorld({
     cfg: { ...WECHAT_DEFAULTS },
     timezone: 'Asia/Shanghai',
-    bridgeFactory: () => bridge as unknown as WechatBridge,
+    bridgeFactory: (o) => {
+      opts = o as unknown as { onEvent: (event: Record<string, unknown>) => void };
+      return bridge as unknown as WechatBridge;
+    },
   });
   const host = new FakeHost();
-  return { world, host };
+  const emit = (event: Record<string, unknown>) => opts?.onEvent(event);
+  return { world, host, emit };
 }
 
 describe('WeChat World', () => {
@@ -91,6 +96,47 @@ describe('WeChat World', () => {
     const sent = await tools.wx_confirm.handler({ decision: 'send' }, call);
     expect(bridge.sent).toEqual([{ chat: '阿黄', text: '在的' }]);
     expect(String(sent)).toContain('已发送');
+    await world.stop();
+  });
+
+  it('图片/语音事件:png 挂成 blob,转出来的字进正文', async () => {
+    const { world, host, emit } = makeWorld();
+    await world.start(host);
+    const pngPath = join(scratchDir, 'voice.png');
+    writeFileSync(pngPath, Buffer.from('89504e470d0a1a0a', 'hex'));
+    emit({
+      event: 'message',
+      chat: '阿黄',
+      sender: '阿黄',
+      text: '[语音]',
+      kind: 'voice',
+      voiceText: '测试。',
+      imagePath: pngPath,
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    const media = host.events.find((e) => e.type === 'wechat.message');
+    expect(media).toBeTruthy();
+    expect(media!.text).toContain('（转文字:测试。）');
+    expect(media!.blobs?.length).toBe(1);
+    expect(media!.blobs?.[0].mime).toBe('image/png');
+    await world.stop();
+  });
+
+  it('图片挂不上时只降级成一行文字,不炸', async () => {
+    const { world, host, emit } = makeWorld();
+    await world.start(host);
+    emit({
+      event: 'message',
+      chat: '阿黄',
+      sender: '阿黄',
+      text: '[图片]',
+      kind: 'image',
+      imagePath: join(scratchDir, '不存在.png'),
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    const media = host.events.find((e) => e.type === 'wechat.message');
+    expect(media).toBeTruthy();
+    expect(media!.blobs).toBeUndefined();
     await world.stop();
   });
 });

@@ -210,6 +210,18 @@ def _class_of(c) -> str:
         return ""
 
 
+VOICE_NAME_RE = re.compile(r'^语音\s*(\d+)\s*["“”]?\s*秒\s*(?:未播放|已播放)?\s*(.*)$')
+
+
+def voice_parts(name: str) -> tuple[str, str]:
+    """`语音2"秒未播放` → ("2", "");转出文字后 Name 变成 `语音2"秒测试。` → ("2", "测试。")。"""
+    raw = (name or "").strip()
+    m = VOICE_NAME_RE.match(raw)
+    if not m:
+        return "", raw
+    return m.group(1), m.group(2).strip().strip('"“”')
+
+
 def _find_transcribe(item):
     """语音气泡下面的「转文字」小按钮。"""
     found = []
@@ -253,17 +265,23 @@ def _grab(c, tag: str) -> str:
 
 
 def capture_media(chat: str, kind: str) -> dict:
-    """打开 chat,把最后一条图片/语音拿到手;完了切回原来的会话。"""
+    """打开 chat,把最后一条图片/语音拿到手;完了切回原来的会话。
+
+    chat 传 "@" 表示「就用现在打开的这个会话」,不切也不切回 ——
+    调试时先手动把会话滚到那条消息,再用它,免得每次都被拉回底部。
+    """
     if not chat:
         return {}
+    stay = chat == "@"
     out: dict = {}
     try:
         before = (wx.ChatInfo() or {}).get("chat_name") or ""
     except Exception:  # noqa: BLE001
         before = ""
     try:
-        wx.ChatWith(chat, exact=False)
-        time.sleep(0.6)
+        if not stay:
+            wx.ChatWith(chat, exact=False)
+            time.sleep(0.6)
         win = _main_window()
         box = _msg_list(win) if win else None
         if box is None:
@@ -280,26 +298,31 @@ def capture_media(chat: str, kind: str) -> dict:
         if target is None:
             return {}
         if kind == "voice" or _class_of(target) == "mmui::ChatVoiceItemView":
-            btn = _find_transcribe(target)
-            if btn is not None:
-                try:
-                    btn.Click(simulateMove=False)
-                except Exception:  # noqa: BLE001
+            seconds, text = voice_parts(target.Name)
+            if seconds:
+                out["voiceSeconds"] = seconds
+            if not text:
+                btn = _find_transcribe(target)
+                if btn is not None:
                     try:
-                        btn.GetInvokePattern().Invoke()
+                        btn.Click(simulateMove=True)
                     except Exception:  # noqa: BLE001
-                        pass
-                time.sleep(2.5)
-                fresh = None
-                for it in _items(box):
-                    if _class_of(it) == "mmui::ChatVoiceItemView":
-                        fresh = it
-                name = (fresh.Name if fresh is not None else target.Name) or ""
-                # 转出来以后一般会多出文字,或者名字里出现拼音/汉字
-                if name and not name.startswith("语音"):
-                    out["voiceText"] = name
-                elif name and len(name) > 4:
-                    out["voiceText"] = name
+                        try:
+                            btn.GetInvokePattern().Invoke()
+                        except Exception:  # noqa: BLE001
+                            pass
+                    # 转文字要等服务端,实测 3–6 秒;轮询到出来为止,最多 12 秒
+                    for _ in range(24):
+                        time.sleep(0.5)
+                        fresh = None
+                        for it in _items(box):
+                            if _class_of(it) == "mmui::ChatVoiceItemView":
+                                fresh = it
+                        _, text = voice_parts(fresh.Name if fresh is not None else "")
+                        if text:
+                            break
+            if text:
+                out["voiceText"] = text
         path = _grab(target, kind)
         if path:
             out["imagePath"] = path
@@ -307,7 +330,7 @@ def capture_media(chat: str, kind: str) -> dict:
     except Exception as err:  # noqa: BLE001
         log("capture 失败:", err)
     finally:
-        if before and before != chat:
+        if (not stay) and before and before != chat:
             try:
                 wx.ChatWith(before, exact=False)
             except Exception:  # noqa: BLE001

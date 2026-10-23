@@ -13,6 +13,11 @@ export interface WechatConfigSection {
   watchChats: string;
   /** 不报告的会话,逗号分隔。 */
   ignoreChats: string;
+  /**
+   * 收到图片/语音时回头把它抓成一张 png(语音还会点一下「转文字」)。
+   * 抓的时候桥会短暂切一下会话,正在用微信会跳一下 —— 嫌烦就关掉,只留一行「[图片]」。
+   */
+  captureMedia: boolean;
 }
 
 export const WECHAT_DEFAULTS: WechatConfigSection = {
@@ -22,6 +27,7 @@ export const WECHAT_DEFAULTS: WechatConfigSection = {
   pollSeconds: 3,
   watchChats: '',
   ignoreChats: '',
+  captureMedia: true,
 };
 
 /** World 配置的 JSON Schema 声明。 */
@@ -59,6 +65,11 @@ export const WECHAT_CONFIG_GROUP: ConfigGroup = {
         title: '忽略这些会话',
         description: '会话名,逗号分隔。',
         'x-hot': true,
+      },
+      'worlds.wechat.captureMedia': {
+        type: 'boolean',
+        title: '抓图片和语音',
+        description: '收到图片/语音时截一张图挂上来,语音还会点「转文字」。抓的时候微信会跳一下会话。',
       },
     },
   },

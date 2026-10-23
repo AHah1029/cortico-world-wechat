@@ -6,6 +6,8 @@ Coopanion 的 Cortico World 扩展:把桌宠接到这台电脑上**开着的微�
 - **读**:`wx_chats` 列会话,`wx_read` 读某个会话最近的消息。
 - **发**:`wx_draft` 起草 → 操作者确认 → `wx_confirm(decision="send")` 才真的发出去。
   和 QQ 世界同一道门:自己起草的东西一句都不能擅自发。
+- **看**:图片和语音。微信里收到图片时,桥回头把那条气泡截成 png 挂成附件;语音会点一下气泡上的
+  「转文字」,把识别出的字放进事件正文。
 
 ## 怎么实现的
 
@@ -34,6 +36,24 @@ Coopanion ── src/world.ts ── src/bridge.ts ──stdio── wx4_bridge.
 | `worlds.wechat.pollSeconds` | 轮询新消息的间隔 |
 | `worlds.wechat.watchChats` | 只收这些会话(逗号分隔,空=都收) |
 | `worlds.wechat.ignoreChats` | 不收这些会话 |
+| `worlds.wechat.captureMedia` | 收到图片/语音时截一张图挂上来、语音还点「转文字」。默认开;抓的时候微信会跳一下会话 |
+
+## 图片和语音是怎么抓的
+
+`wxauto4` 只认文字,图片和语音在它那儿直接消失(raw 里连一条都没有),所以桥自己退回 UIA:
+
+| UIA 类名 | 是什么 |
+|---|---|
+| `mmui::ChatImageItemView` | 图片,`Name` 就是「图片」 |
+| `mmui::ChatVoiceItemView` | 语音,`Name` 形如 `语音2"秒未播放`;转完字变成 `语音2"秒测试。` |
+| `mmui::ChatBubbleReferItemView` | 表情包/贴图(`Name` = 「动画表情」) |
+
+每个条目都带 `BoundingRectangle`(物理像素),图片就照这一块 `ImageGrab` 截一张 png 存到
+`%TEMP%\wx4-captures\`。语音除了截图,还会点气泡下面的「转文字」,轮询最多 12 秒等识别结果出来,
+从 `Name` 里剥出文字。
+
+代价:截的时候要把那个会话切到前面(截完切回),正在用微信会被打断一下 —— 介意就把
+`captureMedia` 关掉,只留一行 `[图片]`。
 
 ## 已知边界
 

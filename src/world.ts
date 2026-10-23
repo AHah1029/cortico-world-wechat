@@ -25,6 +25,7 @@ export interface WechatWorldOptions {
     python: string;
     script: string;
     pollSeconds?: number;
+    env?: Record<string, string>;
     onEvent: (event: BridgeEvent) => void;
     onState: (state: string) => void;
     log: WorldHost['log'];
@@ -140,6 +141,7 @@ export class WechatWorld implements World {
       python: this.opts.cfg.python?.trim() || 'python',
       script,
       pollSeconds: Number(this.opts.cfg.pollSeconds) || 3,
+      env: { WX_CAPTURE: this.opts.cfg.captureMedia === false ? '0' : '1' },
       onEvent: (event) => void this.onBridgeEvent(event),
       onState: (state) => void this.onBridgeState(state),
       log: host.log,
