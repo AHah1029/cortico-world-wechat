@@ -242,6 +242,60 @@ def _find_transcribe(item):
     return found[0] if found else None
 
 
+def _last_voice(box):
+    """消息列表里最后一条语音(转文字之后控件会重建,得重新拿一次)。"""
+    fresh = None
+    for it in _items(box):
+        if _class_of(it) == "mmui::ChatVoiceItemView":
+            fresh = it
+    return fresh
+
+
+def _click_transcribe(item) -> bool:
+    """点这一条语音气泡上的「转文字」。返回有没有点成。"""
+    btn = _find_transcribe(item)
+    if btn is None:
+        return False
+    try:
+        btn.Click(simulateMove=True)
+    except Exception:  # noqa: BLE001
+        try:
+            btn.GetInvokePattern().Invoke()
+        except Exception:  # noqa: BLE001
+            return False
+    return True
+
+
+def _wait_voice_text(box, seconds: float = 12.0) -> str:
+    """转文字要等服务端,实测 3–10 秒;轮询到出来为止。"""
+    for _ in range(int(seconds / 0.5)):
+        time.sleep(0.5)
+        fresh = _last_voice(box)
+        _, text = voice_parts(fresh.Name if fresh is not None else "")
+        if text:
+            return text
+    return ""
+
+
+def transcribe_voice(box, target, tries: int = 2) -> str:
+    """把一条语音转成字。
+
+    微信第一次点「转文字」常常转不出来(点了没反应,或者转完是空的),
+    过一会儿再点一次就好了 —— 所以默认点两轮,每轮最多等 12 秒。
+    """
+    for i in range(tries):
+        fresh = _last_voice(box) or target
+        _, text = voice_parts(fresh.Name if fresh is not None else "")
+        if text:
+            return text
+        _click_transcribe(fresh)
+        text = _wait_voice_text(box)
+        if text:
+            return text
+        log(f"转文字第 {i + 1} 轮没出字")
+    return ""
+
+
 def _grab(c, tag: str) -> str:
     """照这条消息的矩形截一张图,存 png,返回路径。"""
     try:
@@ -302,25 +356,7 @@ def capture_media(chat: str, kind: str) -> dict:
             if seconds:
                 out["voiceSeconds"] = seconds
             if not text:
-                btn = _find_transcribe(target)
-                if btn is not None:
-                    try:
-                        btn.Click(simulateMove=True)
-                    except Exception:  # noqa: BLE001
-                        try:
-                            btn.GetInvokePattern().Invoke()
-                        except Exception:  # noqa: BLE001
-                            pass
-                    # 转文字要等服务端,实测 3–6 秒;轮询到出来为止,最多 12 秒
-                    for _ in range(24):
-                        time.sleep(0.5)
-                        fresh = None
-                        for it in _items(box):
-                            if _class_of(it) == "mmui::ChatVoiceItemView":
-                                fresh = it
-                        _, text = voice_parts(fresh.Name if fresh is not None else "")
-                        if text:
-                            break
+                text = transcribe_voice(box, target)
             if text:
                 out["voiceText"] = text
         path = _grab(target, kind)
