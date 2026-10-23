@@ -1,0 +1,146 @@
+{
+  "tools": [
+    {
+      "name": "wx_chats",
+      "description": "List recent WeChat conversations with their unread counts.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "description": "How many conversations to list."
+          }
+        },
+        "required": []
+      },
+      "tags": [
+        "read"
+      ],
+      "summary": {
+        "zh": "列出微信最近的会话和未读数。",
+        "en": "Lists recent WeChat conversations with unread counts."
+      }
+    },
+    {
+      "name": "wx_read",
+      "description": "Read the most recent messages of one WeChat conversation.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "type": "string",
+            "description": "Conversation name as shown in WeChat."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "description": "How many messages to read."
+          }
+        },
+        "required": [
+          "chat"
+        ]
+      },
+      "tags": [
+        "read"
+      ],
+      "summary": {
+        "zh": "读某个会话最近的消息。",
+        "en": "Reads the latest messages of one conversation."
+      }
+    },
+    {
+      "name": "wx_draft",
+      "description": "Stage a WeChat message without sending it. wx_confirm sends or discards it.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "type": "string",
+            "description": "Conversation name as shown in WeChat."
+          },
+          "text": {
+            "type": "string",
+            "description": "Message text to stage."
+          }
+        },
+        "required": [
+          "chat",
+          "text"
+        ]
+      },
+      "tags": [
+        "draft"
+      ],
+      "summary": {
+        "zh": "起草一条微信消息,先不发。",
+        "en": "Stages a WeChat message without sending it."
+      }
+    },
+    {
+      "name": "wx_confirm",
+      "description": "Send or discard the message staged by wx_draft. Sending is final.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "send",
+              "cancel"
+            ],
+            "description": "send or cancel"
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "tags": [
+        "act"
+      ],
+      "summary": {
+        "zh": "发送或丢弃刚才起草的那条。",
+        "en": "Sends or discards the staged message."
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "wechat.started",
+      "description": {
+        "zh": "World 挂载完成。",
+        "en": "The World was mounted."
+      }
+    },
+    {
+      "type": "wechat.message",
+      "description": {
+        "zh": "微信收到一条新消息。",
+        "en": "A new WeChat message arrived."
+      }
+    },
+    {
+      "type": "wechat.bridge",
+      "description": {
+        "zh": "微信桥断开或出错。",
+        "en": "The bridge went down or errored."
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "key": "worlds.wechat.envPrompt",
+      "title": "WeChat · 环境提示词",
+      "role": "envPrompt",
+      "content": "# WeChat\n\n这个 World 连着这台电脑上开着的微信 4.x 客户端(界面自动化,不注入)。新消息以事件上报,发出去的消息必须先起草再确认。\n"
+    }
+  ]
+}

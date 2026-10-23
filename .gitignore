@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-pkg/
+*.log
+__pycache__/
+*.pyc
+.DS_Store
+captures/
